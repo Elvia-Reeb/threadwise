@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  🧭 THREADWISE FRONTEND (Polished Dashboard) 🧭
+  ------------------------------------------------
+  Refined version: better typography (Inter font), gradient accents,
+  card hover effects, and a warmer charcoal + coral/amber palette.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -192,6 +198,8 @@
     <p>Warm path finder</p>
     <div class="nav-item active" onclick="showSection('ranking', this)">📊 Ranked Prospects</div>
     <div class="nav-item" onclick="showSection('opener', this)">✍️ Opener Writer</div>
+    <div class="nav-item" onclick="showSection('addProspect', this)">➕ Add Real Prospect</div>
+    <div class="nav-item" onclick="showSection('myBackground', this)">👤 My Background</div>
   </div>
 
   <div class="main">
@@ -231,6 +239,46 @@
       <div id="openerResult" class="opener-box"></div>
     </div>
 
+    <div id="addProspect" class="section">
+      <div class="section-title">Add a Real Prospect</div>
+      <div class="section-subtitle">Enter details from their actual LinkedIn profile</div>
+
+      <label>Full name</label>
+      <input id="newName" type="text" placeholder="e.g. Jordan Lee">
+
+      <label>Current company</label>
+      <input id="newCompany" type="text" placeholder="e.g. Nimbus Cloud">
+
+      <label>Past companies (comma-separated)</label>
+      <input id="newPastCompanies" type="text" placeholder="e.g. Acme Corp, Nimbus Cloud">
+
+      <label>Mutual connections (comma-separated)</label>
+      <input id="newConnections" type="text" placeholder="e.g. Sarah Malik, Tom Reilly">
+
+      <label>Recent signal (something they posted/mentioned)</label>
+      <input id="newSignal" type="text" placeholder="e.g. Posted about needing help with X">
+
+      <button onclick="addProspect()">➕ Add Prospect</button>
+      <div id="addProspectResult"></div>
+    </div>
+
+    <div id="myBackground" class="section">
+      <div class="section-title">My Background</div>
+      <div class="section-subtitle">Your real companies and connections — used to find warm paths</div>
+
+      <label>Your past companies (comma-separated)</label>
+      <input id="bgCompanies" type="text" placeholder="e.g. Acme Corp, Dendra AI">
+
+      <label>Your connections (comma-separated)</label>
+      <input id="bgConnections" type="text" placeholder="e.g. Sarah Malik, James Cho">
+
+      <label>Skills/services you offer (comma-separated)</label>
+      <input id="bgSkills" type="text" placeholder="e.g. AI automation, workflow automation">
+
+      <button onclick="updateBackground()">💾 Save Background</button>
+      <div id="bgResult"></div>
+    </div>
+
   </div>
 
   <script>
@@ -261,6 +309,10 @@
             ${r.give_first_match ? `<div class="giftip">${r.give_first_match}</div>` : ""}
           </div>
         `).join("");
+
+        // Keep the Opener Writer dropdown in sync with the real prospect list
+        const select = document.getElementById("prospectSelect");
+        select.innerHTML = results.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
       } catch (error) {
         grid.innerHTML = "⚠️ Couldn't reach the backend. Is threadwise_backend.py still running?";
       }
@@ -289,6 +341,64 @@
         `;
       } catch (error) {
         box.innerHTML = "⚠️ Couldn't reach the backend. Is threadwise_backend.py still running?";
+      }
+    }
+
+    // ➕ Add a real prospect
+    async function addProspect() {
+      const payload = {
+        name: document.getElementById("newName").value,
+        company: document.getElementById("newCompany").value,
+        past_companies: document.getElementById("newPastCompanies").value,
+        connections: document.getElementById("newConnections").value,
+        recent_signal: document.getElementById("newSignal").value
+      };
+
+      const resultBox = document.getElementById("addProspectResult");
+      resultBox.innerHTML = "⏳ Saving...";
+
+      try {
+        const response = await fetch(`${BASE_URL}/add-prospect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        resultBox.innerHTML = data.message || data.error;
+
+        // Also add them to the dropdown in Opener Writer so they're usable right away
+        if (data.prospect) {
+          const option = document.createElement("option");
+          option.value = data.prospect.name;
+          option.textContent = data.prospect.name;
+          document.getElementById("prospectSelect").appendChild(option);
+        }
+      } catch (error) {
+        resultBox.innerHTML = "⚠️ Couldn't reach the backend.";
+      }
+    }
+
+    // 👤 Update your real background info
+    async function updateBackground() {
+      const payload = {
+        past_companies: document.getElementById("bgCompanies").value,
+        connections: document.getElementById("bgConnections").value,
+        skills_you_offer: document.getElementById("bgSkills").value
+      };
+
+      const resultBox = document.getElementById("bgResult");
+      resultBox.innerHTML = "⏳ Saving...";
+
+      try {
+        const response = await fetch(`${BASE_URL}/update-background`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        resultBox.innerHTML = data.message;
+      } catch (error) {
+        resultBox.innerHTML = "⚠️ Couldn't reach the backend.";
       }
     }
   </script>
