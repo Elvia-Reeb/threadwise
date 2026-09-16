@@ -1,6 +1,5 @@
-
-
 import os
+import json
 from datetime import date
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -10,6 +9,28 @@ app = Flask(__name__)
 CORS(app)  # 🔓 lets a webpage frontend talk to this backend safely
 
 PRACTICE_MODE = True  # 🎈 Free testing mode — no API key needed
+
+# -------------------------------------------------------------------
+# 💾 SAVING REAL DATA — a "notebook" file, just like VibeReply
+# -------------------------------------------------------------------
+# Your REAL prospects get saved here so they don't disappear when the
+# backend restarts. The pretend ones below are only used the very
+# first time, before you've added any real ones.
+
+PROSPECTS_FILE = "saved_prospects.json"
+
+
+def load_prospects():
+    if os.path.exists(PROSPECTS_FILE):
+        with open(PROSPECTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    # First time ever running — start with the pretend demo prospects
+    return list(default_prospects)
+
+
+def save_all_prospects(prospect_list):
+    with open(PROSPECTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(prospect_list, f, indent=2)
 
 
 # -------------------------------------------------------------------
@@ -32,7 +53,7 @@ my_background = {
 # 🎯 PRETEND PROSPECTS
 # -------------------------------------------------------------------
 
-prospects = [
+default_prospects = [
     {
         "name": "Emma Whitfield",
         "company": "Lumen Analytics",
@@ -69,6 +90,9 @@ prospects = [
         "recent_signal": "Shared an article about scaling operations efficiently"
     },
 ]
+
+# 📂 Load real saved prospects (or the pretend ones, the very first time)
+prospects = load_prospects()
 
 
 # -------------------------------------------------------------------
@@ -260,6 +284,59 @@ def write_opener():
 
 
 # -------------------------------------------------------------------
+# 🚪 ROUTE 5: Add a REAL prospect (saved permanently)
+# -------------------------------------------------------------------
+
+@app.route("/add-prospect", methods=["POST"])
+def add_prospect():
+    data = request.get_json()
+
+    new_prospect = {
+        "name": data.get("name", ""),
+        "company": data.get("company", ""),
+        # These come in as comma-separated text from the form, so we split them into lists
+        "past_companies": [c.strip() for c in data.get("past_companies", "").split(",") if c.strip()],
+        "connections": [c.strip() for c in data.get("connections", "").split(",") if c.strip()],
+        "recent_signal": data.get("recent_signal", "No recent public activity found")
+    }
+
+    if not new_prospect["name"]:
+        return jsonify({"error": "A name is required"}), 400
+
+    global prospects
+    prospects.append(new_prospect)
+    save_all_prospects(prospects)
+
+    return jsonify({"message": f"✅ Added {new_prospect['name']}", "prospect": new_prospect})
+
+
+# -------------------------------------------------------------------
+# 🚪 ROUTE 6: Update YOUR background (real companies/connections)
+# -------------------------------------------------------------------
+
+@app.route("/update-background", methods=["POST"])
+def update_background():
+    data = request.get_json()
+
+    global my_background
+    if "past_companies" in data:
+        my_background["past_companies"] = [
+            c.strip() for c in data["past_companies"].split(",") if c.strip()
+        ]
+    if "connections" in data:
+        names = [c.strip() for c in data["connections"].split(",") if c.strip()]
+        my_background["connections"] = {
+            name: {"last_talked": date.today()} for name in names
+        }
+    if "skills_you_offer" in data:
+        my_background["skills_you_offer"] = [
+            s.strip() for s in data["skills_you_offer"].split(",") if s.strip()
+        ]
+
+    return jsonify({"message": "✅ Background updated"})
+
+
+# -------------------------------------------------------------------
 # ▶️ START THE SERVER
 # -------------------------------------------------------------------
 
@@ -268,17 +345,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     print(f"👉 Running on port {port}")
     app.run(debug=True, host="0.0.0.0", port=port)
-
-
-# -------------------------------------------------------------------
-# 📝 HOW TO RUN THIS (baby steps!)
-# -------------------------------------------------------------------
-# 1. Install what this needs:
-#      pip install flask flask-cors requests
-#
-# 2. Run it:
-#      python threadwise_backend.py
-#
 # 3. Open http://127.0.0.1:5001 in your browser — you should see a
 #    friendly "backend is alive" message!
 #
