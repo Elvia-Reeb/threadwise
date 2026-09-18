@@ -1,3 +1,16 @@
+"""
+🕸️ THREADWISE BACKEND 🕸️
+--------------------------
+This turns Threadwise into a real "waiter" (a web server) that a website
+or app can send requests to — same idea as the VibeReply backend.
+
+Routes (doors) available:
+  /                  -> simple "are you alive?" check
+  /rank-prospects     -> get ALL prospects ranked by warmth (GET)
+  /prospect/<name>    -> get warm path details for ONE prospect (GET)
+  /write-opener       -> get an AI-written opener message for a prospect (POST)
+"""
+
 import os
 import json
 from datetime import date
@@ -34,19 +47,40 @@ def save_all_prospects(prospect_list):
 
 
 # -------------------------------------------------------------------
-# 👤 YOUR BACKGROUND (pretend data for now)
+# 💾 SAVING YOUR BACKGROUND — so it survives restarts too
 # -------------------------------------------------------------------
 
-my_background = {
+BACKGROUND_FILE = "saved_background.json"
+
+DEFAULT_BACKGROUND = {
     "past_companies": ["Acme Corp", "BrightBot AI", "Nova Systems"],
     "connections": {
-        "Sarah Malik": {"last_talked": date(2026, 8, 20)},
-        "James Cho": {"last_talked": date(2024, 3, 10)},
-        "Fatima Noor": {"last_talked": date(2026, 7, 1)},
-        "David Lee": {"last_talked": date(2023, 5, 15)},
+        "Sarah Malik": {"last_talked": "2026-08-20"},
+        "James Cho": {"last_talked": "2024-03-10"},
+        "Fatima Noor": {"last_talked": "2026-07-01"},
+        "David Lee": {"last_talked": "2023-05-15"},
     },
     "skills_you_offer": ["AI automation", "workflow automation", "review management tools"]
 }
+
+
+def load_background():
+    if os.path.exists(BACKGROUND_FILE):
+        with open(BACKGROUND_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return dict(DEFAULT_BACKGROUND)
+
+
+def save_background(background):
+    with open(BACKGROUND_FILE, "w", encoding="utf-8") as f:
+        json.dump(background, f, indent=2)
+
+
+# -------------------------------------------------------------------
+# 👤 YOUR BACKGROUND (loaded from file, or defaults the first time)
+# -------------------------------------------------------------------
+
+my_background = load_background()
 
 
 # -------------------------------------------------------------------
@@ -99,7 +133,8 @@ prospects = load_prospects()
 # 🔋 HELPER: how stale is a connection?
 # -------------------------------------------------------------------
 
-def months_since(past_date):
+def months_since(past_date_str):
+    past_date = date.fromisoformat(past_date_str)
     today = date.today()
     return (today.year - past_date.year) * 12 + (today.month - past_date.month)
 
@@ -366,14 +401,25 @@ def update_background():
     if "connections" in data:
         names = [c.strip() for c in data["connections"].split(",") if c.strip()]
         my_background["connections"] = {
-            name: {"last_talked": date.today()} for name in names
+            name: {"last_talked": date.today().isoformat()} for name in names
         }
     if "skills_you_offer" in data:
         my_background["skills_you_offer"] = [
             s.strip() for s in data["skills_you_offer"].split(",") if s.strip()
         ]
 
-    return jsonify({"message": "✅ Background updated"})
+    save_background(my_background)  # 💾 actually save it this time!
+
+    return jsonify({"message": "✅ Background updated and saved", "background": my_background})
+
+
+# -------------------------------------------------------------------
+# 🚪 ROUTE: View your currently saved background (for double-checking)
+# -------------------------------------------------------------------
+
+@app.route("/my-background", methods=["GET"])
+def get_background():
+    return jsonify(my_background)
 
 
 # -------------------------------------------------------------------
