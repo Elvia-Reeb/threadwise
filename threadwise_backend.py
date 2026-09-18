@@ -1,16 +1,3 @@
-"""
-🕸️ THREADWISE BACKEND 🕸️
---------------------------
-This turns Threadwise into a real "waiter" (a web server) that a website
-or app can send requests to — same idea as the VibeReply backend.
-
-Routes (doors) available:
-  /                  -> simple "are you alive?" check
-  /rank-prospects     -> get ALL prospects ranked by warmth (GET)
-  /prospect/<name>    -> get warm path details for ONE prospect (GET)
-  /write-opener       -> get an AI-written opener message for a prospect (POST)
-"""
-
 import os
 import json
 from datetime import date
