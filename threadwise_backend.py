@@ -1,7 +1,20 @@
+"""
+🕸️ THREADWISE BACKEND 🕸️
+--------------------------
+This turns Threadwise into a real "waiter" (a web server) that a website
+or app can send requests to — same idea as the VibeReply backend.
+
+Routes (doors) available:
+  /                  -> simple "are you alive?" check
+  /rank-prospects     -> get ALL prospects ranked by warmth (GET)
+  /prospect/<name>    -> get warm path details for ONE prospect (GET)
+  /write-opener       -> get an AI-written opener message for a prospect (POST)
+"""
+
 import os
 import json
 from datetime import date
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 
@@ -109,12 +122,23 @@ def months_since(past_date):
 # -------------------------------------------------------------------
 
 def find_warm_path(prospect):
-    shared_companies = list(
-        set(my_background["past_companies"]) & set(prospect["past_companies"])
-    )
-    shared_connections = list(
-        set(my_background["connections"].keys()) & set(prospect["connections"])
-    )
+    # 🔧 Normalize (lowercase + trim spaces) so "Dendra AI" matches "dendra ai "
+    def normalize_list(items):
+        return {item.strip().lower(): item.strip() for item in items}
+
+    my_companies_norm = normalize_list(my_background["past_companies"])
+    prospect_companies_norm = normalize_list(prospect["past_companies"])
+    shared_companies = [
+        my_companies_norm[key] for key in
+        set(my_companies_norm.keys()) & set(prospect_companies_norm.keys())
+    ]
+
+    my_connections_norm = normalize_list(my_background["connections"].keys())
+    prospect_connections_norm = normalize_list(prospect["connections"])
+    shared_connections = [
+        my_connections_norm[key] for key in
+        set(my_connections_norm.keys()) & set(prospect_connections_norm.keys())
+    ]
 
     warmth_score = (len(shared_companies) * 2) + (len(shared_connections) * 3)
 
@@ -240,6 +264,18 @@ def home():
 
 
 # -------------------------------------------------------------------
+# 🚪 ROUTE: Serve the frontend webpage itself
+# -------------------------------------------------------------------
+# This lets people visit /app and see the actual Threadwise dashboard,
+# instead of needing to open the HTML file from their own laptop.
+
+@app.route("/app", methods=["GET"])
+def serve_frontend():
+    folder = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(folder, "threadwise_frontend.html")
+
+
+# -------------------------------------------------------------------
 # 🚪 ROUTE 2: Rank ALL prospects by warmth
 # -------------------------------------------------------------------
 
@@ -311,6 +347,23 @@ def add_prospect():
 
 
 # -------------------------------------------------------------------
+# 🚪 ROUTE: Delete a prospect by name
+# -------------------------------------------------------------------
+
+@app.route("/delete-prospect/<name>", methods=["DELETE"])
+def delete_prospect(name):
+    global prospects
+    original_count = len(prospects)
+    prospects = [p for p in prospects if p["name"].lower() != name.lower()]
+
+    if len(prospects) == original_count:
+        return jsonify({"error": f"No prospect found with the name '{name}'"}), 404
+
+    save_all_prospects(prospects)
+    return jsonify({"message": f"🗑️ Deleted {name}"})
+
+
+# -------------------------------------------------------------------
 # 🚪 ROUTE 6: Update YOUR background (real companies/connections)
 # -------------------------------------------------------------------
 
@@ -345,6 +398,17 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     print(f"👉 Running on port {port}")
     app.run(debug=True, host="0.0.0.0", port=port)
+
+
+# -------------------------------------------------------------------
+# 📝 HOW TO RUN THIS (baby steps!)
+# -------------------------------------------------------------------
+# 1. Install what this needs:
+#      pip install flask flask-cors requests
+#
+# 2. Run it:
+#      python threadwise_backend.py
+#
 # 3. Open http://127.0.0.1:5001 in your browser — you should see a
 #    friendly "backend is alive" message!
 #
